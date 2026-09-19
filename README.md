@@ -22,7 +22,7 @@ npm start              # http://localhost:5177
 
 | 通道 | 配置 | 说明 |
 |---|---|---|
-| `anthropic` | `ANTHROPIC_API_KEY` | 官方 SDK，默认 `claude-opus-5`；选题走结构化输出（`output_config.format`），正文走流式 |
+| `anthropic` | `ANTHROPIC_API_KEY` | 官方 SDK，默认 `claude-opus-5`；选题用提示词约束 JSON，正文走流式 |
 | `openai` | `OPENAI_API_KEY` + `OPENAI_BASE_URL` | 任意 OpenAI 兼容接口：DeepSeek / Kimi / 通义 / vLLM / Ollama |
 | `mock` | 无需配置 | 无密钥时的本地模板，保证全流程可跑通，便于演示和开发 |
 

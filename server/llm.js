@@ -34,7 +34,9 @@ export function providerInfo() {
 }
 
 let _anthropic;
-const anthropic = () => (_anthropic ||= new Anthropic());
+const anthropic = () => (_anthropic ||= new Anthropic({
+  ...(process.env.ANTHROPIC_BASE_URL && { baseURL: process.env.ANTHROPIC_BASE_URL }),
+}));
 
 /* ------------------------------------------------------------------ *
  * 用量埋点：由 index.js 注入落库函数，这一层不直接依赖 db
@@ -75,15 +77,19 @@ export async function generateJSON({ system, user, schema, mock, meta = {} }) {
   return tracked({ feature: 'unknown', ...meta }, async () => {
     if (PROVIDER === 'mock') return { value: mock(), usage: null };
 
+    /* Anthropic 官方 structured outputs 走 beta `output_format`；
+       当前通道（含自定义 BASE_URL 代理）会丢掉这些字段，模型当聊天回散文，
+       parseJSON 就会炸。跟 OpenAI 通道一样，把 schema 写进提示词约束输出。 */
+    const jsonUser = `${user}\n\n只输出一个 JSON 对象，不要任何解释或代码块标记。JSON Schema：\n${JSON.stringify(schema)}`;
+
     if (PROVIDER === 'anthropic') {
       const res = await anthropic().messages.create({
         model: ANTHROPIC_MODEL,
         max_tokens: 16000,
         system,
-        messages: [{ role: 'user', content: user }],
-        output_config: { format: { type: 'json_schema', schema }, effort: 'medium' },
+        messages: [{ role: 'user', content: jsonUser }],
       });
-      const text = res.content.find((b) => b.type === 'text')?.text || '';
+      const text = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
       return {
         value: parseJSON(text),
         usage: { input: res.usage?.input_tokens, output: res.usage?.output_tokens },
@@ -92,7 +98,7 @@ export async function generateJSON({ system, user, schema, mock, meta = {} }) {
 
     const res = await openaiChat({
       system,
-      user: `${user}\n\n只输出一个 JSON 对象，不要任何解释或代码块标记。JSON Schema：\n${JSON.stringify(schema)}`,
+      user: jsonUser,
       stream: false,
       temperature: TEMP_JSON,    // 结构化输出用低温度，减少格式跑偏
       responseFormat: { type: 'json_object' },

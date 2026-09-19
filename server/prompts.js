@@ -37,6 +37,18 @@ export const PLATFORMS = {
     spec: `B 站中视频脚本。标题带信息增量和好奇缺口；结构：开场悬念 → 背景铺垫 → 分段主体（每段一个小标题+口播）→ 总结与互动引导。
 语气年轻、有梗但不油，可标注【转场】【画面提示】。`,
   },
+  linkedin: {
+    label: 'LinkedIn',
+    length: 800,
+    spec: `LinkedIn 帖子。开头一句抛出洞察或经历，用短行断句制造节奏感；正文围绕一个职场观点或行业趋势展开，
+穿插个人经验和数据佐证；语气专业但不刻板，像在和同行分享心得；结尾抛出问题或行动号召引发评论互动。可用 3-5 个 #话题标签。`,
+  },
+  jike: {
+    label: '即刻',
+    length: 400,
+    spec: `即刻动态。开头直接抛出想法或发现，语气真诚随性，像在和朋友聊天；内容短小精悍，一个帖子讲一个点；
+可以是生活观察、产品思考、行业吐槽或有趣发现；多用短句和口语化表达，不端着；结尾可留一个开放性问题或感叹引发讨论。`,
+  },
 };
 
 export const TONES = {
@@ -54,7 +66,7 @@ export const DEFAULT_TONE = '实用干货';
 export const platformSpec = (key) => (PLATFORMS[key] || PLATFORMS[DEFAULT_PLATFORM]);
 export const toneSpec = (key) => TONES[key] || TONES[DEFAULT_TONE];
 
-/* 三个方向的 JSON 结构 —— Anthropic 走 output_config.format，其它渠道走提示词约束 */
+/* 三个方向的 JSON 结构 —— 各通道都靠提示词 + schema 约束输出 */
 export const TOPICS_SCHEMA = {
   type: 'object',
   properties: {
