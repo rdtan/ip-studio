@@ -183,6 +183,38 @@ db.exec(`
     created_at  TEXT    NOT NULL
   );
 `);
+
+/* ---------- 来源：本机知识库 / 项目文件夹 ----------
+   登记的是文件夹路径，不监听、不自动扫。抽出的卡片进素材库（materials），
+   这里只存"弹药在哪"，以及后面扫描/提炼会用的状态。 */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS material_sources (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    persona_id    INTEGER NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
+    kind          TEXT    NOT NULL DEFAULT 'vault',   -- vault | project
+    path          TEXT    NOT NULL,
+    label         TEXT    NOT NULL DEFAULT '',
+    project_class TEXT    NOT NULL DEFAULT '',        -- validating | delivered | has_docs
+    doc_path      TEXT    NOT NULL DEFAULT '',
+    brief         TEXT    NOT NULL DEFAULT '',
+    brief_status  TEXT    NOT NULL DEFAULT 'none',    -- none | draft | confirmed
+    enabled       INTEGER NOT NULL DEFAULT 1,
+    preview_json  TEXT    NOT NULL DEFAULT 'null',
+    last_error    TEXT    NOT NULL DEFAULT '',
+    last_scan_at  TEXT    NOT NULL DEFAULT '',
+    created_at    TEXT    NOT NULL,
+    updated_at    TEXT    NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_sources_persona ON material_sources(user_id, persona_id, id DESC);
+`);
+
+/* 素材库加 source_id：卡片来自哪个来源。删来源只置空、不删卡片 */
+{
+  const cols = new Set(db.prepare('PRAGMA table_info(materials)').all().map((c) => c.name));
+  if (cols.size && !cols.has('source_id')) db.exec('ALTER TABLE materials ADD COLUMN source_id INTEGER');
+}
+
 db.exec(`
   /* 提示词变体：同一个功能可以挂多份 system，按权重分流。
      不改代码就能试新提示词，而且每次调用都记下用的哪一份——
@@ -848,6 +880,42 @@ export const Materials = {
     if (!ids.length) return;
     const stmt = db.prepare('UPDATE materials SET used_count = used_count + 1 WHERE id = ? AND user_id = ?');
     for (const id of ids) stmt.run(id, userId);
+  },
+};
+
+/* ---------- sources（来源：本机知识库 / 项目文件夹） ---------- */
+export const Sources = {
+  create(userId, personaId, s) {
+    const t = now();
+    const info = db.prepare(`
+      INSERT INTO material_sources (user_id, persona_id, kind, path, label, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, personaId, s.kind, s.path, s.label, t, t);
+    return this.byId(Number(info.lastInsertRowid), userId);
+  },
+  byId(id, userId) {
+    return db.prepare('SELECT * FROM material_sources WHERE id = ? AND user_id = ?').get(id, userId) || null;
+  },
+  list(personaId, userId) {
+    return db.prepare(`
+      SELECT s.*, (SELECT COUNT(*) FROM materials m WHERE m.source_id = s.id) AS material_count
+      FROM material_sources s WHERE s.persona_id = ? AND s.user_id = ?
+      ORDER BY s.id ASC
+    `).all(personaId, userId).map((r) => ({ ...r }));
+  },
+  update(id, userId, { label, enabled }) {
+    const cur = this.byId(id, userId);
+    if (!cur) return null;
+    db.prepare(`
+      UPDATE material_sources SET label = ?, enabled = ?, updated_at = ?
+      WHERE id = ? AND user_id = ?
+    `).run(label ?? cur.label, enabled === undefined ? cur.enabled : (enabled ? 1 : 0), now(), id, userId);
+    return this.byId(id, userId);
+  },
+  /* 删来源不删卡片：把来源卡片改成手填（source_id 置空），卡片仍留在素材库 */
+  remove(id, userId) {
+    db.prepare('UPDATE materials SET source_id = NULL WHERE source_id = ?').run(id);
+    return db.prepare('DELETE FROM material_sources WHERE id = ? AND user_id = ?').run(id, userId).changes > 0;
   },
 };
 

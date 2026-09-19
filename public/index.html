@@ -521,6 +521,34 @@
           </fieldset>
         </section>
 
+        <section class="acc-panel hidden" data-panel="source">
+          <fieldset class="subsection">
+            <legend>来源<span>登记本机知识库与项目文件夹，之后从这里提炼成素材</span></legend>
+
+            <div class="src-add">
+              <div class="grid">
+                <label>类型
+                  <select id="srcKind">
+                    <option value="vault">知识库文件夹</option>
+                    <option value="project">项目文件夹</option>
+                  </select>
+                </label>
+                <label>名称<input id="srcLabel" maxlength="80" placeholder="留空用文件夹名"></label>
+              </div>
+              <label class="full">本机绝对路径
+                <input id="srcPath" placeholder="例：D:\Obsidian\我的知识库">
+              </label>
+              <div class="mat-add-foot">
+                <button class="btn primary small" type="button" id="srcAddBtn">登记来源</button>
+              </div>
+              <p class="form-error" id="srcError"></p>
+            </div>
+
+            <div class="src-list" id="srcList"></div>
+            <p class="hint" id="srcHint"></p>
+          </fieldset>
+        </section>
+
         <section class="acc-panel hidden" data-panel="style">
           <fieldset class="subsection hidden" id="styleSection">
             <legend>语气样本<span>喂几篇成稿，让它学你真实的语感</span></legend>

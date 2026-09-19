@@ -25,6 +25,8 @@ const el = {
   cuesRunBtn: $('cuesRunBtn'), copyCuesBtn: $('copyCuesBtn'), prompterBtn: $('prompterBtn'),
   matKind: $('matKind'), matTitle: $('matTitle'), matBody: $('matBody'), matTags: $('matTags'),
   matSaveBtn: $('matSaveBtn'), matList: $('matList'), matHint: $('matHint'), matError: $('matError'),
+  srcKind: $('srcKind'), srcLabel: $('srcLabel'), srcPath: $('srcPath'),
+  srcAddBtn: $('srcAddBtn'), srcList: $('srcList'), srcHint: $('srcHint'), srcError: $('srcError'),
   illusBtn: $('illusBtn'), illusBar: $('illusBar'), illusChip: $('illusChip'),
   illusHint: $('illusHint'), illusList: $('illusList'),
   illusPlanBtn: $('illusPlanBtn'), illusRunBtn: $('illusRunBtn'),
@@ -499,6 +501,7 @@ const ACCOUNT_TABS = [
   { key: 'basic', label: '基本设定', hint: '这个号是谁、写给谁' },
   { key: 'persona', label: '个人人设', hint: '第一人称用谁的口吻' },
   { key: 'material', label: '素材库', hint: '你的真实经历与数据', needsSaved: true },
+  { key: 'source', label: '来源', hint: '本机知识库与项目', needsSaved: true },
   { key: 'style', label: '语气样本', hint: '喂成稿学你的语感', needsSaved: true },
 ];
 
@@ -546,6 +549,7 @@ function openPersonaModal(persona) {
   loadSamples(persona?.id ?? null);
   mat.editing = null;
   loadMaterials(persona?.id ?? null);
+  loadMaterialSources(persona?.id ?? null);
   setTimeout(() => f.name.focus(), 30);
 }
 
@@ -584,6 +588,7 @@ el.personaForm.addEventListener('submit', async (e) => {
         renderAccountNav();
               loadSamples(persona.id);
         loadMaterials(persona.id);
+        loadMaterialSources(persona.id);
         await loadPersonas(persona.id);
         resetBrief();
         loadHistory();
@@ -2935,8 +2940,8 @@ function renderMaterials() {
       <textarea data-f="body" rows="3" maxlength="4000">${esc(m.body)}</textarea>
       <div class="mat-add-foot">
         <input data-f="tags" value="${esc(m.tags)}" maxlength="200" placeholder="标签，逗号分隔">
-        <button class="mini" data-save="${m.id}">保存</button>
-        <button class="mini" data-cancel="1">取消</button>
+        <button type="button" class="mini" data-save="${m.id}">保存</button>
+        <button type="button" class="mini" data-cancel="1">取消</button>
       </div>
     </div>` : `
     <div class="mat-item" data-mat="${m.id}">
@@ -2945,8 +2950,8 @@ function renderMaterials() {
         <b>${esc(m.title)}</b>
         ${m.used_count ? `<span class="mat-used">用过 ${m.used_count} 次</span>` : ''}
         <span class="mat-acts">
-          <button class="mini" data-edit="${m.id}">改</button>
-          <button class="mini" data-del="${m.id}">删</button>
+          <button type="button" class="mini" data-edit="${m.id}">改</button>
+          <button type="button" class="mini" data-del="${m.id}">删</button>
         </span>
       </div>
       <p>${esc(m.body)}</p>
@@ -2995,6 +3000,83 @@ el.matList.addEventListener('click', async (e) => {
       await loadMaterials(state.editingId);
       toast('已更新');
     } catch (err) { toast(err.message); }
+  }
+});
+
+/* ==================================================================
+ * 来源：本机知识库 / 项目文件夹
+ *
+ * 弹药在本机，先挂上才谈提炼。这里只登记文件夹路径——
+ * 不监听文件、不自动扫，扫描和抽卡是后面的事。
+ * ================================================================== */
+
+const src = { list: [] };
+
+async function loadMaterialSources(personaId) {
+  if (!personaId) { src.list = []; renderMaterialSources(); return; }
+  try {
+    const { sources } = await api(`/personas/${personaId}/sources`);
+    src.list = sources;
+  } catch { src.list = []; }
+  renderMaterialSources();
+}
+
+function renderMaterialSources() {
+  el.srcList.innerHTML = src.list.map((s) => `
+    <div class="mat-item src-item${s.enabled ? '' : ' off'}" data-src="${s.id}">
+      <div class="mat-head">
+        <span class="mat-kind">${s.kind === 'vault' ? '知识库' : '项目'}</span>
+        <b>${esc(s.label)}</b>
+        ${s.enabled ? '' : '<span class="mat-used">已停用</span>'}
+        <span class="mat-acts">
+          <button type="button" class="mini" data-toggle="${s.id}">${s.enabled ? '停用' : '启用'}</button>
+          <button type="button" class="mini" data-del="${s.id}">删</button>
+        </span>
+      </div>
+      <p class="src-path">${esc(s.path)}</p>
+      ${s.material_count ? `<div class="mat-tags"><span>已入库 ${s.material_count} 条</span></div>` : ''}
+    </div>`).join('');
+
+  el.srcHint.textContent = src.list.length
+    ? '来源只登记文件夹，不监听、不自动扫。之后在这里点「扫描」把它提炼成素材。'
+    : '登记一个本机文件夹，之后从这里把它提炼成素材。';
+}
+
+el.srcAddBtn.addEventListener('click', () => busy(el.srcAddBtn, async () => {
+  el.srcError.textContent = '';
+  const body = {
+    kind: el.srcKind.value,
+    label: el.srcLabel.value.trim(),
+    path: el.srcPath.value.trim(),
+  };
+  if (!body.path) { el.srcError.textContent = '填上文件夹的绝对路径'; return; }
+  try {
+    await api(`/personas/${state.editingId}/sources`, { method: 'POST', body });
+    el.srcPath.value = ''; el.srcLabel.value = '';
+    await loadMaterialSources(state.editingId);
+    toast('来源已登记');
+  } catch (err) { el.srcError.textContent = err.message; }
+}));
+
+el.srcList.addEventListener('click', async (e) => {
+  const t = e.target;
+  if (t.dataset.toggle) {
+    const s = src.list.find((x) => x.id === Number(t.dataset.toggle));
+    if (!s) return;
+    try {
+      await api(`/sources/${t.dataset.toggle}`, { method: 'PUT', body: { enabled: !s.enabled } });
+      await loadMaterialSources(state.editingId);
+    } catch (err) { toast(err.message); }
+    return;
+  }
+  if (t.dataset.del) {
+    const s = src.list.find((x) => x.id === Number(t.dataset.del));
+    if (!await ask.confirm({
+      title: `删掉来源「${s?.label}」？`,
+      body: '已经入库的素材会保留，只是不再和这个来源挂钩。',
+      ok: '删除', danger: true,
+    })) return;
+    try { await api(`/sources/${t.dataset.del}`, { method: 'DELETE' }); await loadMaterialSources(state.editingId); } catch (err) { toast(err.message); }
   }
 });
 

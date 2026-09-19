@@ -1,9 +1,9 @@
 /* API 处理函数 */
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
-import { resolve as resolvePath } from 'node:path';
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { basename, isAbsolute, resolve as resolvePath } from 'node:path';
 import {
   Admins, DATA_DIR, Drafts, MATERIAL_KINDS, Materials, Personas, Pool,
-  Evals, Orders, Quota, Samples, Sections, Usage, Users, Variants,
+  Evals, Orders, Quota, Samples, Sections, Sources, Usage, Users, Variants,
 } from './db.js';
 import {
   HttpError, adminCookie, adminLogin, adminSetupNeeded, clearAdminCookie, clearCookie,
@@ -1520,6 +1520,67 @@ export async function handleMaterialUpdate(req, res, body, params) {
 export async function handleMaterialDelete(req, res, body, params) {
   const user = requireUser(req);
   if (!Materials.remove(Number(params.mid), user.id)) throw new HttpError(404, '素材不存在');
+  json(res, 200, { ok: true });
+}
+
+/* ==================================================================
+ * 来源：本机知识库 / 项目文件夹
+ *
+ * 弹药在本机，先挂上才谈提炼。这里只登记文件夹路径，不监听、不自动扫；
+ * 扫描和抽卡是后面的事。路径是服务端本机绝对路径（产品就跑在本机 Node 上）。
+ * ================================================================== */
+
+const SOURCE_KINDS = ['vault', 'project'];
+
+export async function handleSourceList(req, res, body, params) {
+  const user = requireUser(req);
+  const persona = Personas.byId(Number(params.id), user.id);
+  if (!persona) throw new HttpError(404, '账号不存在');
+  json(res, 200, { sources: Sources.list(persona.id, user.id) });
+}
+
+export async function handleSourceCreate(req, res, body, params) {
+  const user = requireUser(req);
+  const persona = Personas.byId(Number(params.id), user.id);
+  if (!persona) throw new HttpError(404, '账号不存在');
+
+  const kind = SOURCE_KINDS.includes(body?.kind) ? body.kind : 'vault';
+  const rawPath = String(body?.path ?? '').trim();
+  if (!rawPath) throw new HttpError(400, '填上文件夹的绝对路径');
+  if (!isAbsolute(rawPath)) throw new HttpError(400, '要填这台机器的绝对路径，例如 D:\\Obsidian\\我的知识库');
+
+  let abs;
+  try { abs = resolvePath(rawPath); } catch { throw new HttpError(400, '路径不合法'); }
+
+  // 目录要真的存在；读不到就在来源上标红，不改已有素材
+  let isDir = false;
+  try { isDir = (await stat(abs)).isDirectory(); } catch { isDir = false; }
+  if (!isDir) throw new HttpError(400, '读不到这个文件夹，检查路径是不是写对了');
+
+  // 同一账号下同一路径不能挂两遍（Windows 盘符大小写不敏感）
+  const dup = Sources.list(persona.id, user.id)
+    .some((s) => s.path.toLowerCase() === abs.toLowerCase());
+  if (dup) throw new HttpError(409, '这个文件夹已经登记过了');
+
+  const label = String(body?.label ?? '').trim() || basename(abs) || '未命名来源';
+  json(res, 200, { source: Sources.create(user.id, persona.id, { kind, path: abs, label }) });
+}
+
+export async function handleSourceUpdate(req, res, body, params) {
+  const user = requireUser(req);
+  const label = String(body?.label ?? '').trim();
+  if (label.length > 80) throw new HttpError(400, '名称太长了');
+  const out = Sources.update(Number(params.sid), user.id, {
+    label: label || undefined,
+    enabled: body?.enabled === undefined ? undefined : Boolean(body.enabled),
+  });
+  if (!out) throw new HttpError(404, '来源不存在');
+  json(res, 200, { source: out });
+}
+
+export async function handleSourceDelete(req, res, body, params) {
+  const user = requireUser(req);
+  if (!Sources.remove(Number(params.sid), user.id)) throw new HttpError(404, '来源不存在');
   json(res, 200, { ok: true });
 }
 

@@ -1402,6 +1402,15 @@ pre, code, .tts-out { font-family: var(--font-mono); }
 }
 .mat-acts { display: flex; gap: 6px; }
 
+/* ---------------- 来源 ---------------- */
+.src-add { display: grid; gap: 8px; margin-bottom: 18px; }
+.src-list { display: grid; gap: 8px; }
+.src-item .src-path {
+  margin: 0; font-family: var(--font-mono); font-size: 11.5px;
+  color: var(--faint); word-break: break-all;
+}
+.src-item.off { opacity: .55; }
+
 /* ---------------- 选题池 ---------------- */
 .pool { margin-bottom: 14px; }
 .pool-list { display: grid; gap: 6px; margin-top: 8px; }
