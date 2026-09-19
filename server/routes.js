@@ -1563,6 +1563,7 @@ export async function handleSourceCreate(req, res, body, params) {
   if (dup) throw new HttpError(409, '这个文件夹已经登记过了');
 
   const label = String(body?.label ?? '').trim() || basename(abs) || '未命名来源';
+  if (label.length > 80) throw new HttpError(400, '名称太长了');
   json(res, 200, { source: Sources.create(user.id, persona.id, { kind, path: abs, label }) });
 }
 

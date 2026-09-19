@@ -914,7 +914,7 @@ export const Sources = {
   },
   /* 删来源不删卡片：把来源卡片改成手填（source_id 置空），卡片仍留在素材库 */
   remove(id, userId) {
-    db.prepare('UPDATE materials SET source_id = NULL WHERE source_id = ?').run(id);
+    db.prepare('UPDATE materials SET source_id = NULL WHERE source_id = ? AND user_id = ?').run(id, userId);
     return db.prepare('DELETE FROM material_sources WHERE id = ? AND user_id = ?').run(id, userId).changes > 0;
   },
 };
